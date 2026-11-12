@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Чат по короткому коду</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a14; --glass: rgba(22,22,38,0.5);
+    --glass-border: rgba(255,255,255,0.08);
+    --accent: #2b6cff; --text: #e8e8f0; --text-dim: #8a8a9a;
+    --ok: #22d3a5; --err: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100vh; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+    max-width: 640px; margin: 0 auto; padding: 20px 16px 32px;
+    color: var(--text); background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 60% 40% at 20% 0%, rgba(43,108,255,0.22), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 80% 100%, rgba(124,58,237,0.2), transparent 60%);
+    background-attachment: fixed; overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before, body::after {
+    content: ''; position: fixed; width: 420px; height: 420px;
+    border-radius: 50%; filter: blur(90px); opacity: 0.28;
+    pointer-events: none; z-index: -1;
+  }
+  body::before { background: radial-gradient(circle,#2b6cff,transparent 70%); top:-120px; left:-120px; animation: f1 22s ease-in-out infinite; }
+  body::after  { background: radial-gradient(circle,#7c3aed,transparent 70%); bottom:-120px; right:-120px; animation: f2 26s ease-in-out infinite; }
+  @keyframes f1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(60px,40px) scale(1.1)} }
+  @keyframes f2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-50px,-30px) scale(1.08)} }
+  h1 {
+    font-size: 19px; font-weight: 700; margin: 0 0 16px; letter-spacing: -0.4px;
+    background: linear-gradient(135deg,#fff 0%,#9cd0ff 60%,#b794f6 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .card {
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--glass-border); border-radius: 16px; padding: 16px; margin-bottom: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+    animation: cardIn .5s cubic-bezier(.34,1.2,.64,1) backwards;
+  }
+  .card:nth-of-type(1){animation-delay:.05s}.card:nth-of-type(2){animation-delay:.15s}
+  @keyframes cardIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; font-weight: 600; }
+  .my-id {
+    font-family: 'SF Mono', ui-monospace, monospace; font-size: 24px; font-weight: 800; letter-spacing: 3px;
+    background: linear-gradient(135deg,#9cd0ff 0%,#b794f6 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .id-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button {
+    background: linear-gradient(135deg,#2b6cff,#4a7fff); color: #fff;
+    border: 0; border-radius: 10px; padding: 10px 16px; font-size: 14px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, background .25s, opacity .2s;
+    box-shadow: 0 3px 10px rgba(43,108,255,.3);
+  }
+  button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 22px rgba(43,108,255,.45)}
+  button:active:not(:disabled){transform:translateY(0) scale(.96);transition-duration:.08s}
+  button:disabled{opacity:.4;cursor:default;box-shadow:none}
+  button.sec { background: rgba(255,255,255,.06); color: var(--text); box-shadow: none; border: 1px solid var(--glass-border); }
+  button.sec:hover:not(:disabled){background:rgba(255,255,255,.1);box-shadow:none}
+  input {
+    background: rgba(0,0,0,.3); color: var(--text);
+    border: 1px solid var(--glass-border); border-radius: 10px;
+    padding: 12px 14px; font-size: 15px; font-family: inherit; width: 100%;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+  }
+  input:focus{outline:none;border-color:var(--accent);background:rgba(0,0,0,.4);box-shadow:0 0 0 4px rgba(43,108,255,.15)}
+  .connect-row { display: flex; gap: 8px; }
+  .connect-row input { flex: 1; text-transform: uppercase; font-family: 'SF Mono', ui-monospace, monospace; letter-spacing: 1.5px; }
+  #status { font-size: 13px; color: var(--text-dim); transition: color .3s; display: flex; align-items: center; gap: 6px; }
+  #status.on{color:var(--ok)} #status.err{color:var(--err)}
+  .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,211,165,.6)} 50%{box-shadow:0 0 0 6px rgba(34,211,165,0)} }
+  #chat {
+    height: 340px; overflow-y: auto; padding: 12px;
+    background: rgba(0,0,0,.22);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border); border-radius: 16px; margin-bottom: 12px;
+    scroll-behavior: smooth; overscroll-behavior: contain;
+    box-shadow: inset 0 2px 12px rgba(0,0,0,.3);
+  }
+  .msg {
+    margin: 6px 0; padding: 10px 14px; border-radius: 16px;
+    max-width: 78%; word-wrap: break-word; font-size: 14.5px; line-height: 1.4;
+    animation: msgIn .4s cubic-bezier(.34,1.56,.64,1) backwards;
+  }
+  .msg.no-anim{animation:none}
+  @keyframes msgIn { from{opacity:0;transform:translateY(14px) scale(.94);filter:blur(4px)} to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)} }
+  .msg.me { background: linear-gradient(135deg,#2b6cff,#4a7fff); color:#fff; margin-left:auto; border-bottom-right-radius:6px; box-shadow: 0 4px 14px rgba(43,108,255,.35); }
+  .msg.them { background: rgba(255,255,255,.07); color: var(--text); margin-right: auto; border-bottom-left-radius: 6px; border: 1px solid rgba(255,255,255,.06); }
+  .msg.sys { background: transparent; color: var(--text-dim); font-size: 11.5px; text-align: center; margin: 14px auto; padding: 4px 12px; border-radius: 20px; display: table; animation: fadeIn .5s ease backwards; }
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .send-row { display: flex; gap: 8px; }
+  .send-row input { flex: 1; }
+  .send-row button { padding: 0 20px; font-size: 18px; min-width: 56px; }
+  .footer { text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 20px; opacity: .6; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<h1>💬 Чат по короткому коду</h1>
+
+<div class="card">
+  <div class="label">Твой код</div>
+  <div class="id-row">
+    <span class="my-id" id="myId">…</span>
+    <button class="sec" id="copyBtn" disabled>Копировать</button>
+  </div>
+  <div style="font-size:12px;color:#666;margin-top:8px">
+    Код постоянный. Сообщи его другу — он введёт его у себя, и вы попадёте в общий чат.
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Подключиться к другу</div>
+  <div class="connect-row">
+    <input id="targetId" placeholder="MX-XXXXXX" maxlength="10" autocomplete="off" spellcheck="false">
+    <button id="connectBtn" disabled>Войти</button>
+  </div>
+  <div id="status" style="margin-top:10px">Статус: инициализация…</div>
+</div>
+
+<div id="chat"></div>
+
+<div class="send-row">
+  <input id="msg" placeholder="Сообщение…" disabled>
+  <button id="sendBtn" disabled>→</button>
+</div>
+
+<div class="footer">P2P · MQTT signaling</div>
+
+<script>
+(async () => {
+  // ================= 1. КОД (выполняется сразу, до любых CDN) =================
+  const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const ID_LEN = 6;
+
+  let storage;
+  try {
+    storage = window.localStorage;
+    storage.setItem('__t','1'); storage.removeItem('__t');
+  } catch {
+    const mem = {};
+    storage = { getItem:k=>(k in mem?mem[k]:null), setItem:(k,v)=>{mem[k]=String(v)}, removeItem:k=>{delete mem[k]} };
+  }
+
+  function getMyCode() {
+    let seed = storage.getItem('chat.seed');
+    if (!seed) {
+      const bytes = new Uint8Array(16);
+      if (window.crypto && typeof crypto.getRandomValues === 'function') {
+        crypto.getRandomValues(bytes);
+      } else {
+        for (let i=0;i<16;i++) bytes[i] = Math.floor(Math.random()*256);
+      }
+      seed = Array.from(bytes, b => b.toString(16).padStart(2,'0')).join('');
+      storage.setItem('chat.seed', seed);
+    }
+    let code = '';
+    for (let i=0;i<ID_LEN;i++) {
+      const byte = parseInt(seed.substr(i*2,2),16) || 0;
+      code += ALPHABET[byte % ALPHABET.length];
+    }
+    return code;
+  }
+
+  const myCode = getMyCode();
+  const myId = 'MX-' + myCode;
+  document.getElementById('myId').textContent = myId;   // ← код виден СРАЗУ
+
+  // Копирование с фолбэком
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(text); return true; } catch {}
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, ta.value.length);
+    let ok = false; try { ok = document.execCommand('copy'); } catch {}
+    document.body.removeChild(ta); return ok;
+  }
+  const copyBtn = document.getElementById('copyBtn');
+  copyBtn.disabled = false;
+  copyBtn.onclick = async () => {
+    const ok = await copyText(myId);
+    copyBtn.textContent = ok ? 'Скопировано ✓' : 'Выделено — Ctrl+C';
+    if (!ok) {
+      const r = document.createRange(); r.selectNodeContents(document.getElementById('myId'));
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    setTimeout(()=>copyBtn.textContent='Копировать',1600);
+  };
+
+  // ================= 2. Элементы и UI =================
+  const statusEl  = document.getElementById('status');
+  const connectBtn= document.getElementById('connectBtn');
+  const targetEl  = document.getElementById('targetId');
+  const msgEl     = document.getElementById('msg');
+  const sendBtn   = document.getElementById('sendBtn');
+  const chatEl    = document.getElementById('chat');
+
+  function setStatus(text, cls='') {
+    if (cls==='on') statusEl.innerHTML = '<span class="pulse"></span>'+text;
+    else statusEl.textContent = 'Статус: '+text;
+    statusEl.className = cls;
+  }
+
+  // ================= 3. История =================
+  let history = [];
+  try { history = JSON.parse(storage.getItem('chat.history')||'[]'); } catch {}
+
+  function renderMsg(who, text, animate=true) {
+    const d = document.createElement('div');
+    d.className = 'msg '+who+(animate?'':' no-anim');
+    d.textContent = text;
+    chatEl.appendChild(d);
+  }
+  function pushMsg(who, text) {
+    if (who!=='sys') {
+      history.push({who, text, ts: Date.now()});
+      if (history.length>500) history = history.slice(-500);
+      try { storage.setItem('chat.history', JSON.stringify(history)); } catch {}
+    }
+    renderMsg(who, text, true);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  chatEl.style.scrollBehavior='auto';
+  history.forEach(m => renderMsg(m.who, m.text, false));
+  chatEl.scrollTop = chatEl.scrollHeight;
+  requestAnimationFrame(()=>{ chatEl.style.scrollBehavior='smooth'; });
+
+  // ================= 4. Загрузка P2P-библиотеки (динамически, с фолбэками) =================
+  setStatus('загружаем P2P-модуль…');
+
+  const CDN_URLS = [
+    'https://esm.sh/trystero/mqtt',
+    'https://esm.sh/trystero@0.21.0/mqtt',
+    'https://esm.run/trystero/mqtt',
+    'https://cdn.jsdelivr.net/npm/trystero/mqtt/+esm',
+  ];
+
+  let trystero = null;
+  let lastErr = null;
+
+  for (const url of CDN_URLS) {
+    try {
+      console.log('Пробую загрузить:', url);
+      trystero = await import(url);
+      console.log('OK:', url);
+      break;
+    } catch (e) {
+      console.warn('Не удалось:', url, '—', e.message);
+      lastErr = e;
+    }
+  }
+
+  if (!trystero || !trystero.joinRoom) {
+    setStatus('не удалось загрузить P2P. Нужен интернет и HTTPS.', 'err');
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Недоступно';
+    console.error('Все CDN провалились:', lastErr);
+    return;
+  }
+
+  const { joinRoom } = trystero;
+
+  // ================= 5. Логика подключения =================
+  let room = null;
+  let currentRoomId = null;
+  let sendMessageAction = null;
+
+  const CODE_RE = new RegExp('^MX-['+ALPHABET+']{'+ID_LEN+'}$');
+
+  connectBtn.disabled = false;
+  setStatus('готово — введи код друга');
+
+  connectBtn.onclick = () => {
+    const target = targetEl.value.trim().toUpperCase();
+    if (!CODE_RE.test(target)) { setStatus('неверный формат кода','err'); return; }
+    if (target === myId)        { setStatus('это твой собственный код','err'); return; }
+
+    const ids = [myId, target].sort();
+    const roomId = ids.join('|');
+
+    if (currentRoomId === roomId && room) { setStatus('уже в этой комнате','on'); return; }
+    if (room) { try { room.leave(); } catch {} room = null; }
+
+    setStatus('подключаемся…');
+    connectBtn.disabled = true;
+    connectBtn.textContent = '…';
+
+    try {
+      room = joinRoom({ appId: 'p2p-chat-mx-v2' }, roomId);
+      currentRoomId = roomId;
+      sendMessageAction = room.makeAction('msg');
+
+      sendMessageAction.onMessage = (data) => {
+        pushMsg('them', String(data));
+      };
+
+      room.onPeerJoin = () => {
+        setStatus('подключено','on');
+        msgEl.disabled = false; sendBtn.disabled = false; msgEl.focus();
+        connectBtn.disabled = true;
+        pushMsg('sys', '— соединение установлено —');
+      };
+
+      room.onPeerLeave = () => {
+        setStatus('соединение закрыто','err');
+        msgEl.disabled = true; sendBtn.disabled = true;
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Войти';
+      };
+    } catch (e) {
+      setStatus('ошибка: '+e.message,'err');
+      connectBtn.disabled = false;
+      connectBtn.textContent = 'Войти';
+    }
+  };
+
+  targetEl.addEventListener('input', () => {
+    targetEl.value = targetEl.value.toUpperCase().replace(/[^A-Z0-9-]/g,'');
+  });
+
+  function send() {
+    const t = msgEl.value.trim();
+    if (!t || !sendMessageAction || !room) return;
+    try {
+      sendMessageAction.send(t);
+      pushMsg('me', t);
+      msgEl.value = '';
+    } catch (e) {
+      setStatus('не удалось отправить: '+e.message,'err');
+    }
+  }
+  sendBtn.onclick = send;
+  msgEl.addEventListener('keydown', e => { if (e.key==='Enter') send(); });
+})();
+</script>
+</body>
+</html>

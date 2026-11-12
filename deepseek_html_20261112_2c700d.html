@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Чат по короткому коду</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; max-width: 620px; margin: 0 auto; padding: 16px; background: #111; color: #eee; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .my-id { font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #9cf; }
+  .id-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button { background: #2b6cff; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.sec { background: #333; }
+  input { background: #1c1c1c; color: #eee; border: 1px solid #333; border-radius: 8px; padding: 10px; font-size: 14px; font-family: inherit; }
+  input:focus { outline: none; border-color: #2b6cff; }
+  .connect-row { display: flex; gap: 8px; }
+  .connect-row input { flex: 1; text-transform: uppercase; font-family: ui-monospace, monospace; letter-spacing: 1px; }
+  #status { font-size: 13px; color: #888; }
+  #status.on { color: #4caf50; }
+  #status.err { color: #f66; }
+  #chat { height: 320px; overflow-y: auto; padding: 10px; background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 12px; margin-bottom: 10px; }
+  .msg { margin: 4px 0; padding: 6px 10px; border-radius: 10px; max-width: 80%; word-wrap: break-word; font-size: 14px; }
+  .msg.me { background: #2b6cff; margin-left: auto; }
+  .msg.them { background: #2a2a2a; margin-right: auto; }
+  .msg.sys { background: transparent; color: #666; font-size: 12px; text-align: center; margin: 8px auto; }
+  .send-row { display: flex; gap: 8px; }
+  .send-row input { flex: 1; }
+  .update-banner { display: none; background: #4caf50; color: #000; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; align-items: center; gap: 10px; }
+  .update-banner.show { display: flex; }
+  .update-banner button { background: #000; color: #4caf50; }
+  .footer { text-align: center; font-size: 11px; color: #555; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div id="updateBanner" class="update-banner">
+  🎉 Доступна новая версия <b id="newVer"></b>
+  <button id="reloadBtn" style="margin-left:auto">Обновить</button>
+</div>
+
+<h1>💬 Чат по короткому коду</h1>
+
+<div class="card">
+  <div class="label">Твой код</div>
+  <div class="id-row">
+    <span class="my-id" id="myId">…</span>
+    <button class="sec" id="copyBtn" disabled>Копировать</button>
+  </div>
+  <div style="font-size:12px;color:#666;margin-top:8px">
+    Код постоянный — не меняется после перезапуска.
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Подключиться к другу</div>
+  <div class="connect-row">
+    <input id="targetId" placeholder="MX-XXXXXX" maxlength="10" autocomplete="off" spellcheck="false">
+    <button id="connectBtn" disabled>Войти</button>
+  </div>
+  <div id="status" style="margin-top:8px">Статус: инициализация…</div>
+</div>
+
+<div id="chat"></div>
+
+<div class="send-row">
+  <input id="msg" placeholder="Сообщение…" disabled>
+  <button id="sendBtn" disabled>→</button>
+</div>
+
+<div class="footer">v<span id="verLabel"></span></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(async () => {
+  // ================= НАСТРОЙКИ ОБНОВЛЕНИЯ =================
+  // Впиши URL файла version.json рядом с этим index.html (например,
+  // 'https://nick.github.io/chat/version.json'). Оставь пустым, если
+  // хостинга нет — тогда проверка обновлений просто отключена.
+  const VERSION_URL = '';
+  const APP_VERSION = '1.1.0';
+  // ========================================================
+
+  document.getElementById('verLabel').textContent = APP_VERSION;
+
+  // ---------- Проверка обновлений ----------
+  const banner = document.getElementById('updateBanner');
+  const newVerEl = document.getElementById('newVer');
+  document.getElementById('reloadBtn').onclick = () => {
+    location.href = location.href.split('?')[0] + '?v=' + Date.now();
+  };
+
+  function cmpVersion(a, b) {
+    const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const x = pa[i] || 0, y = pb[i] || 0;
+      if (x > y) return 1;
+      if (x < y) return -1;
+    }
+    return 0;
+  }
+
+  async function checkUpdate() {
+    if (!VERSION_URL) return;
+    try {
+      const r = await fetch(VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' });
+      const data = await r.json();
+      if (data.version && cmpVersion(data.version, APP_VERSION) > 0) {
+        newVerEl.textContent = 'v' + data.version;
+        banner.classList.add('show');
+      }
+    } catch {}
+  }
+  checkUpdate();
+  setInterval(checkUpdate, 5 * 60 * 1000);           // раз в 5 минут
+  window.addEventListener('focus', checkUpdate);      // при возврате во вкладку
+
+  // ---------- Стабильный короткий код ----------
+  const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const ID_LEN = 6;
+
+  async function getMyCode() {
+    let seed = localStorage.getItem('chat.seed');
+    if (!seed) {
+      const buf = crypto.getRandomValues(new Uint8Array(16));
+      seed = Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('chat.seed', seed);
+    }
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
+    const bytes = new Uint8Array(hash);
+    let code = '';
+    for (let i = 0; i < ID_LEN; i++) code += ALPHABET[bytes[i] % ALPHABET.length];
+    return code;
+  }
+
+  const myCode = await getMyCode();
+  const myId = 'MX-' + myCode;
+
+  document.getElementById('myId').textContent = myId;
+  const copyBtn = document.getElementById('copyBtn');
+  copyBtn.disabled = false;
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(myId).then(() => {
+      copyBtn.textContent = 'Скопировано ✓';
+      setTimeout(() => copyBtn.textContent = 'Копировать', 1500);
+    });
+  };
+
+  // ---------- Элементы ----------
+  const statusEl  = document.getElementById('status');
+  const connectBtn= document.getElementById('connectBtn');
+  const targetEl  = document.getElementById('targetId');
+  const msgEl     = document.getElementById('msg');
+  const sendBtn   = document.getElementById('sendBtn');
+  const chatEl    = document.getElementById('chat');
+
+  let conn = null, peer = null;
+
+  function setStatus(text, cls = '') {
+    statusEl.textContent = 'Статус: ' + text;
+    statusEl.className = cls;
+  }
+  function resetConnectBtn() {
+    connectBtn.disabled = false;
+    connectBtn.textContent = 'Войти';
+  }
+
+  // ---------- История ----------
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('chat.history') || '[]'); } catch {}
+
+  function renderMsg(who, text) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + who;
+    d.textContent = text;
+    chatEl.appendChild(d);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  function pushMsg(who, text) {
+    if (who !== 'sys') {
+      history.push({ who, text, ts: Date.now() });
+      if (history.length > 500) history = history.slice(-500);
+      try { localStorage.setItem('chat.history', JSON.stringify(history)); } catch {}
+    }
+    renderMsg(who, text);
+  }
+  history.forEach(m => renderMsg(m.who, m.text));
+
+  // ---------- Соединение ----------
+  function attachConn(c) {
+    conn = c;
+    c.on('open', () => {
+      setStatus('подключено ✅', 'on');
+      msgEl.disabled = false;
+      sendBtn.disabled = false;
+      msgEl.focus();
+      connectBtn.disabled = true;
+      pushMsg('sys', '— соединение установлено —');
+    });
+    c.on('data', d => pushMsg('them', String(d)));
+    c.on('close', () => {
+      setStatus('соединение закрыто');
+      msgEl.disabled = true;
+      sendBtn.disabled = true;
+      conn = null;
+      resetConnectBtn();
+    });
+    c.on('error', e => {
+      setStatus('ошибка соединения: ' + e.type, 'err');
+      resetConnectBtn();
+    });
+  }
+
+  // ---------- PeerJS ----------
+  let tempSuffix = '';
+  function createPeer() {
+    peer = new Peer(myId + tempSuffix, { debug: 1 });
+    peer.on('open', () => {
+      setStatus('готово — введите код друга');
+      resetConnectBtn();
+    });
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id') {
+        if (!tempSuffix) {
+          tempSuffix = '-' + Math.random().toString(36).slice(2, 6);
+          setStatus('код занят (другая вкладка?). Создан временный.', 'err');
+          setTimeout(createPeer, 400);
+        } else {
+          setStatus('не удалось зарегистрировать код', 'err');
+        }
+      } else if (err.type === 'peer-unavailable') {
+        setStatus('абонент не найден — проверь код', 'err');
+        resetConnectBtn();
+      } else {
+        setStatus('ошибка: ' + err.type, 'err');
+      }
+    });
+    peer.on('connection', c => {
+      if (conn && (conn.open || conn.peer === c.peer)) { c.close(); return; }
+      attachConn(c);
+    });
+  }
+  createPeer();
+
+  // ---------- Подключение ----------
+  connectBtn.onclick = () => {
+    const target = targetEl.value.trim().toUpperCase();
+    if (!/^MX-[A-Z2-9]{6}$/.test(target)) {
+      setStatus('неверный формат кода (MX-XXXXXX)', 'err');
+      return;
+    }
+    if (target === myId) { setStatus('это твой собственный код', 'err'); return; }
+    if (!peer || peer.disconnected) {
+      setStatus('нет связи с сервером, подожди…', 'err');
+      return;
+    }
+    setStatus('подключаемся…');
+    connectBtn.disabled = true;
+    connectBtn.textContent = '…';
+    const c = peer.connect(target, { reliable: true });
+    attachConn(c);
+    setTimeout(() => {
+      if ((!conn || !conn.open) && connectBtn.textContent === '…') {
+        setStatus('не удалось подключиться — попробуй ещё раз', 'err');
+        resetConnectBtn();
+      }
+    }, 15000);
+  };
+
+  targetEl.addEventListener('input', () => {
+    targetEl.value = targetEl.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  });
+
+  // ---------- Отправка ----------
+  function send() {
+    const t = msgEl.value.trim();
+    if (!t || !conn || !conn.open) return;
+    conn.send(t);
+    pushMsg('me', t);
+    msgEl.value = '';
+  }
+  sendBtn.onclick = send;
+  msgEl.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+})();
+</script>
+</body>
+</html>
